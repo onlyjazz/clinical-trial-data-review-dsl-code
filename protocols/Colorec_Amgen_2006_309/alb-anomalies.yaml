@@ -1,0 +1,13 @@
+PROTOCOL: Amgen Protocol Number 20050203
+
+DATA:
+  sources:
+    - adlb_pds2019
+    - adsl_pds2019
+  requires:
+    adlb_pds2019:
+      - LBTEST
+      - LBSTRESN
+    adsl_pds2019:
+      - B_WEIGHT
+      - B_ECOG

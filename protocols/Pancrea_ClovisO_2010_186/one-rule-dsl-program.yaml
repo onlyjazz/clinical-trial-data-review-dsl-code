@@ -1,0 +1,67 @@
+PROTOCOL:
+# Metadata: rule ID, description, protocol number, version
+  id: CO-101-001
+  rule_id: AST_liver_check
+  description: >
+    If AST > 2.5 x ULN at screening, confirm liver lesion. If not, flag ineligible.
+
+DATA:
+# Where all of the following live:
+# sources (required tables)
+# requires (required columns per table)
+# logic (declarative evaluation logic)
+
+  sources:
+    - adlb_pds2019
+    - adrsp_pds2019
+
+  requires:
+    adlb_pds2019: [LBTEST, LBSTRESN, LBSTNRHI]
+    adrsp_pds2019: [RSTRESP, VISIT]
+
+  logic:
+    - if:
+        - table: adlb_pds2019
+          where:
+            - LBTEST = "AST"
+            - LBSTRESN > 2.5 * LBSTNRHI
+            - VISIT contains "Screen"
+      then:
+        - table: adrsp_pds2019
+          where:
+            - VISIT contains "Screen"
+            - TRGLOC contains "LIVER"
+          unless:
+            - TRGLOC is missing
+          flag: "No lesion location variable found"
+
+RULES:
+# Flag definitions, severity
+# If AST at screening is >2.5 but <= 5x ULN, then confirm the presence of tumor lesions in the liver at screening. If not confirmed, flag.
+# Note: This is confirmation of eligibility as per Inclusion Criteria #9. If AST is above 2.5 and there are no liver lesions reported at screening, the patient is not eligible to participate in the study.
+# Will involve a calculation 5 x ULN (ANRHI variable) or referring to tox grade variable as per CTCAE v4.0 (version specified in protocol).
+
+  severity: "critical"
+  alert_code: AST_NO_LIVER_CONFIRM
+  message: >
+    Subject has elevated AST at screening but no confirmed liver lesion.
+
+WORKFLOW:
+# Workflow definition to control the agentic runtime. Implicit main loop on rules
+  entrypoint: rule_evaluator
+  decision_tree:
+    step: validate_schema
+    if valid:
+      step: expand_ruleset
+      then:
+        step: translate_to_sql
+        then:
+          step: review_translation
+          if approved:
+            step: execute_sql
+            then:
+              step: insert_alerts
+          else:
+            step: manual_review
+    else:
+      step: error_handler
