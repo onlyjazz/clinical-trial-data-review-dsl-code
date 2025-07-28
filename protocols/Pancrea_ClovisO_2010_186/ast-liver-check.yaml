@@ -33,12 +33,15 @@ RULES:
     If AST > 2.5*ULN at screening, confirm presence of liver lesion.
     If no liver lesion is reported, flag subject as ineligible per Inclusion Criterion 9.
   logic:
-    if AST at screening > 2.5*ULN and ≤ 5*ULN:        
+    if AST at screening > 2.5*ANRHI and AST at screening ≤ 5*ANRHI:        
       if liver lesion is not confirmed:
         flag subject as ineligible (IC#9 violation).
 # SQL Translation:
 # select  subjid,param,paramcd,LBORRES,anrhi,visit from adlb_clovis where paramcd='AST' and lborres::float > 2.5*ANRHI  order by subjid, visit;
 # select  subjid, METLIV from adsl_clovis where metliv is null order by subjid;
+# Prompt
+# Write a single SQL query that implements this DSL rule by joining adlb_clovis and adsl_clovis. Only return subjects where AST at pre-entrollment is > 2.5 × ANRHI and ≤ 5 × ANRHI and METLIV is not 'Y'. Use paramcd = 'AST' and visit = 'Screening' for the lab. Include subject ID, AST result, ANRHI, and METLIV in the output.
+# liver lessions not present may mean null values in the data
 WORKFLOW:
 # Workflow definition to control the agentic runtime. Implicit main loop on rules
   entrypoint: rule_evaluator
