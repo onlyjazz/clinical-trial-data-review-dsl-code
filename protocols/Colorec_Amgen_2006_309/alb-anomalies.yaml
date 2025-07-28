@@ -1,4 +1,5 @@
-PROTOCOL: Amgen Protocol Number 20050203
+PROTOCOL: 
+  id: 20050203
 
 DATA:
   sources:
