@@ -44,20 +44,18 @@ RULES:
 # liver lessions not present may mean null values in the data
 WORKFLOW:
 # Workflow definition to control the agentic runtime. Implicit main loop on rules
-  entrypoint: rule_evaluator
+  entrypoint: pitboss
   decision_tree:
-    step: validate_schema
+    step: model_abnormal_labs # exception handling inside a function
     if valid:
-      step: expand_ruleset
+      step: sql_pitboss_agent
       then:
-        step: translate_to_sql
-        then:
-          step: review_translation
-          if approved:
-            step: execute_sql
+        step: ai_chat
+        if approved:
+            step: render_alerts_table # show table link to user
             then:
               step: insert_alerts
           else:
-            step: manual_review
+            step: ai_chat # go back to chat and say "I need help - cant figure this out"
     else:
       step: error_handler
