@@ -26,7 +26,7 @@ RULES:
 # Note: This is confirmation of eligibility as per Inclusion Criteria #9. If AST is above 2.5 and there are no liver lesions reported at screening, the patient is not eligible to participate in the study.
 # Will involve a calculation 5 x ULN (ANRHI variable) or referring to tox grade variable as per CTCAE v4.0 (version specified in protocol).
 
-  alert_code: AST_NO_LIVER_CONFIRM
+  rule_code: AST_NO_LIVER_CONFIRM
   severity: "critical"
   message: "Subject has elevated AST at screening but no confirmed liver lesion."
   description: |
@@ -46,16 +46,15 @@ WORKFLOW:
 # Workflow definition to control the agentic runtime. Implicit main loop on rules
   entrypoint: pitboss
   decision_tree:
-    step: model_abnormal_labs # exception handling inside a function
+    step: get_next_rule
     if valid:
-      step: sql_pitboss_agent
+      step: model_rule_agent  # Language model agent that takes card system prompt and translates rule to SQL
+      step: sql_pitboss_agent # SQL agent that runs the SQL query and saves results in a table
+      step: data_table_agent  # Data table agent that formats the results into a data table and returns a link
+      step: insert_alerts     # Select flagged rows and insert into alerts table
       then:
-        step: ai_chat
-        if approved:
-            step: render_alerts_table # show table link to user
-            then:
-              step: insert_alerts
-          else:
-            step: ai_chat # go back to chat and say "I need help - cant figure this out"
+        step: ai_chat         # AI chat agent for HITL: shows alerts link and data table link and enables user to review results  
+        else:
+            step: ai_chat     # Go back to chat and say "I need help - cant figure this out"
     else:
-      step: error_handler
+      step: end_of_workflow
