@@ -1,0 +1,144 @@
+PROTOCOL:
+  # Metadata: rule ID, description, protocol number, version 8 Sep 7, 2025
+  id: CO-101-001
+
+DATA:
+  # Where all of the following live:
+  # sources (required tables)
+  # requires (required columns per table)
+  sources:
+    - adlb_clovis
+    - adsl_clovis
+    - ddt 
+    - alerts
+    - adae_clovis
+    - adef_clovis
+    
+  requires:
+    adlb_clovis:
+      - ANRHI
+      - PARAM
+      - LBORRES
+      - VISIT
+    adsl_clovis:
+      - METLIV
+    ddt:  
+      - protocol_id
+    alerts:
+      - protocol_id
+    adae_clovis:
+      - ASTDT
+      - AETOXGR
+      - AEREL
+      - AETERM
+      - USUBJID
+    adef_clovis:
+      - STARTDT
+      - USUBJID
+
+RULES:
+  # Flag definitions, severity
+  - rule_code: IC9_VIOLATION
+    severity: "critical"
+    message: "Subject has elevated AST at screening but no confirmed liver lesion."
+    description: "AST > 2.5ULN and < 5ULN and METLIV is N"
+    crf: "Subjects"
+    logic: |
+      if AST at PRE-ENROLLMENT > 2.5*ANRHI and AST at PRE-ENROLLMENT ≤ 5*ANRHI        
+      and liver lesion is N return SUBJID, AST, ULN, METLIV, flag 'IC9 violation'
+
+  - rule_code: METADATA
+    severity: "critical"
+    message: "Display a listing of study metadata"
+    description: "Study metadata"
+    logic: "select * from ddt WHERE protocol_id = 'CO-101-001'"
+
+  - rule_code: ALT_HIGH
+    severity: "major"
+    message: "Alanine Aminotransferase > 400 indication of liver risk"
+    description: "Show patients with ALT over 400"
+    crf: "Labs"
+    logic: "IF ALT > 400 then return SUBJID, PARAMCD, AVAL, flag 'Liver risk'"
+
+  - rule_code: AGE_UNDER_30
+    severity: "minor"
+    message: "Subjects under 30"
+    description: "Listing of people under 30 in the study"
+    crf: "Subjects"
+    logic: "IF AGE < 30 then return SUBJID, AGE, SEX"
+  
+  - rule_code: AGE_OVER_80
+    severity: "minor"
+    message: "Subjects over 80"
+    description: "Listing of people over 80 in the study"
+    crf: "Subjects"
+    logic: "IF AGE > 80 then return SUBJID, AGE, SEX, RACE, COUNTRY, REGION, flag 'Age over 80'"
+  
+  - rule_code: ECOG_MISSING
+    severity: "minor"
+    message: "The ECOG assessment is missing"
+    description: "If ECOG is NULL then produce a listing of all subjects and flag subjects without ECOG"
+    crf: "Subjects"
+    logic: "IF ECOG is NULL then return SUBJID, ARM"
+
+  - rule_code: FULLY_ACTIVE
+    severity: "minor"
+    message: "Listing of patients who are fully active"
+    description: "Fully active, able to carry on all pre-disease performance without restriction"
+    crf: "Subjects"
+    logic: "IF subject Fully active then return SUBJID, ECOG, AGE, SEX, SAFFL, ARM"
+
+  - rule_code: AGE_CREAT_HIGH
+    severity: "critical"
+    message: "Elderly subject with elevated creatinine"
+    description: "Produce a listing of subjects over 65 with elevated Creatinine."
+    crf: "Labs"
+    logic: |
+      IF AGE > 65 and Creatinine > 200 then return SUBJID, AGE, PARAM, AVAL, flag 'Elevated Creatine'
+
+  - rule_code: XYZ_CHECK
+    severity: "info"
+    message: "XYZ test result check"
+    description: "Test case to query on a non-existent key in the data dictionary"
+    logic: "IF XYZ > 10 then flag"
+
+  - rule_code: HGB_LOW
+    severity: "critical"
+    message: "Low Hemoglobin below 7"
+    description: "Low hemoglobin check"
+    crf: "Labs"
+    logic: "IF Hemoglobin < 7 then return SUBJID, AGE, AVAL, PARAM"
+
+  - rule_code: "30-SOMETHING"
+    severity: "low"
+    message: "Age group"
+    description: "age group"
+    crf: "Subjects"
+    logic: "IF AGE between 30 and 50 then return SUBJID, AGE, SEX"
+
+  - rule_code: AE_GRADE34_WITHIN_28DAYS
+    severity: "major"
+    message: "Grade 3/4 related AEs within first 28 days"
+    description: "List patients with grade 3 or 4 related AEs that occurred within 28 days of treatment start"
+    crf: "Adverse Events"
+    logic: >
+      IF (AETOXGR = 3 OR AETOXGR = 4) AND 
+      AEREL in ('POSSIBLE/PROBABLY', 'DEFINITELY') AND 
+      ASTDT is on or before 28 days after STARTDT (from adef_clovis, DATE_ADD, one row per subject)
+      THEN return USUBJID, AETERM, AETOXGR, AEREL, ASTDT, STARTDT
+
+
+WORKFLOW:
+  entrypoint: pitboss
+  decision_tree:
+    step: get_next_rule
+    if_valid:
+      steps:
+        - step: model_rule_agent
+        - step: sql_pitboss_agent
+        - step: data_table_agent
+        - step: insert_alerts
+    then:
+      - step: ai_chat
+    else:
+      - step: ai_chat
